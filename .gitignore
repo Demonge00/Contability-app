@@ -1,0 +1,21 @@
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Back
+env/
+backend/backend/__pycache__
+*.pyc
+db.sqlite3
+.env*
+.env.bat
+*.pem
+
