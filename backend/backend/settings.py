@@ -54,7 +54,7 @@ cloudinary.config(
     cloud_name="dz2ybxyum",
     api_key="214132743732354",
     api_secret="dyNh-PVWpf6a5vhK13Uc2xoLE8k",
-    api_proxy="http://proxy.server:3128",
+    # api_proxy="http://proxy.server:3128",
 )
 
 MIDDLEWARE = [
@@ -205,13 +205,10 @@ if not DEBUG:
 
 WEB_SITE_NAME = os.getenv("DJANGO_WEB_SITE_NAME")
 VERIFICATION_URL = os.getenv("DJANGO_VERIFICATION_URL")
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"  # Cambia según tu proveedor (ej., smtp.mail.yahoo.com)
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = "DJANGO_SENDER_EMAIL"  # Tu dirección de correo
-EMAIL_HOST_PASSWORD = os.getenv(
-    "DJANGO_SENDER_PASSWORD"
-)  # Tu contraseña o App Password
+EMAIL_HOST_USER = os.getenv("DJANGO_SENDER_EMAIL")
+EMAIL_HOST_PASSWORD = os.getenv("DJANGO_SENDER_PASSWORD")
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-SENDER_EMAIL = os.getenv("DJANGO_SENDER_EMAIL")

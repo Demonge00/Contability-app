@@ -14,6 +14,11 @@ router.register(r"shop", views.ShopViewSet)
 router.register(r"buying_account", views.BuyingAccountsViewsSet)
 router.register(r"common_information", views.CommonInformationViewSet)
 router.register(r"product", views.ProductViewSet)
+router.register(r"shopping_reciep", views.ShoppingReceipViewSet)
+router.register(r"buyed_product", views.ProductBuyedViewSet)
+router.register(r"deliver_reciep", views.DeliverReceipViewSet)
+router.register(r"product_received", views.ProductReceivedViewSet)
+router.register(r"package", views.PackageViewSet)
 urlpatterns = [
     path("", include(router.urls)),
     path("verify_user/<verification_secret>", views.verify_user, name="verify_user"),

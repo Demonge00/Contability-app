@@ -1,11 +1,11 @@
 """Models for api app"""
 
+import uuid
 from django.utils import timezone
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.utils.translation import gettext_lazy as _
 from api.managers import CustomUserManager
-import uuid
 
 # Create your models here.
 
@@ -70,7 +70,7 @@ class Order(models.Model):
         cost = 0
         if self.products.all():
             for i in self.products.all():
-                cost += i.shop_cost
+                cost += i.total_cost
         return cost
 
     def received_products(self):
@@ -170,7 +170,28 @@ class Product(models.Model):
         for i in self.buys.all():
             cost += i.actual_cost_of_product
             ocurrences += i.amount_buyed
-        return float(cost / ocurrences)
+        return float(cost / ocurrences) if ocurrences > 0 else 0
+
+    def amount_buyed(self):
+        """Amount of product buyed"""
+        amount = 0
+        for i in self.buys.all():
+            amount += i.amount_buyed
+        return amount
+
+    def amount_received(self):
+        """Amount of product received"""
+        amount = 0
+        for i in self.delivers.all():
+            amount += i.amount_received
+        return amount
+
+    def amount_delivered(self):
+        """Amount of product delivered"""
+        amount = 0
+        for i in self.delivers.all():
+            amount += i.amount_delivered
+        return amount
 
 
 class ShoppingReceip(models.Model):
@@ -180,14 +201,15 @@ class ShoppingReceip(models.Model):
         BuyingAccounts, on_delete=models.CASCADE, related_name="buys"
     )
     shop_of_buy = models.ForeignKey(Shop, on_delete=models.CASCADE, related_name="buys")
-    status_of_shopping = models.CharField(max_length=100)
-
+    status_of_shopping = models.CharField(max_length=100, default="No pagado")
+    buy_date = models.DateTimeField(default=timezone.now)
     objects = models.Manager()
 
     def total_cost_of_shopping(self):
+        """Total cost of shopping"""
         cost = 0
         for i in self.buyed_products.all():
-            cost += i.real_cost_of_product()
+            cost += i.real_cost_of_product
         return cost
 
 
@@ -198,14 +220,15 @@ class DeliverReceip(models.Model):
         Order, on_delete=models.CASCADE, related_name="delivery_receipts"
     )
     weight = models.FloatField()
-    status = models.CharField(max_length=100)
-    deliver_picture = models.URLField()
+    status = models.CharField(max_length=100, default="Enviado")
+    deliver_date = models.DateTimeField(default=timezone.now)
+    deliver_picture = models.URLField(blank=True, null=True)
 
     objects = models.Manager()
 
     def total_cost_of_deliver(self):
         """Total cost of delivered objects"""
-        cost = self.weight * CommonInformation.objects.get(pk=1).cost_per_pound
+        cost = self.weight * CommonInformation.objects.get(pk=2).cost_per_pound
         for i in self.delivered_products.all():
             cost += i.original_product.cost_per_product() * i.amount_received
         return cost
@@ -216,8 +239,8 @@ class Package(models.Model):
 
     agency_name = models.CharField(max_length=100)
     number_of_tracking = models.CharField(max_length=100)
-    status_of_processing = models.CharField(max_length=100)
-    package_picture = models.URLField()
+    status_of_processing = models.CharField(max_length=100, default="Enviado")
+    package_picture = models.URLField(blank=True, null=True)
 
     objects = models.Manager()
 
@@ -231,10 +254,10 @@ class ProductBuyed(models.Model):
     order = models.ForeignKey(
         Order, on_delete=models.CASCADE, related_name="buyed_products"
     )
-    actual_cost_of_product = models.FloatField(null=True, blank=True)
+    actual_cost_of_product = models.FloatField(default=0)
     shop_discount = models.FloatField(default=0)
     offer_discount = models.FloatField(default=0)
-    buy_date = models.DateField(default=timezone.now)
+    buy_date = models.DateTimeField(default=timezone.now)
     shoping_receip = models.ForeignKey(
         ShoppingReceip, on_delete=models.CASCADE, related_name="buyed_products"
     )
@@ -267,9 +290,14 @@ class ProductReceived(models.Model):
         Package, on_delete=models.CASCADE, related_name="contained_products"
     )
     deliver_receip = models.ForeignKey(
-        DeliverReceip, on_delete=models.CASCADE, related_name="delivered_products"
+        DeliverReceip,
+        on_delete=models.CASCADE,
+        related_name="delivered_products",
+        null=True,
+        blank=True,
     )
     amount_received = models.IntegerField()
+    amount_delivered = models.IntegerField(default=0)
     observation = models.TextField(max_length=200, null=True)
 
     objects = models.Manager()
