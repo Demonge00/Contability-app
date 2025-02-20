@@ -12,20 +12,15 @@ from api.models import (
     ProductBuyed,
     ProductReceived,
     Order,
+    EvidenceImages,
 )
+import re
 
 
 class UserSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(source="id", read_only=True)
-    email = serializers.EmailField(write_only=True, required=False)
-    password = serializers.CharField(write_only=True, required=False)
-    is_agent = serializers.BooleanField(required=False)
-    is_accountant = serializers.BooleanField(required=False)
-    is_buyer = serializers.BooleanField(required=False)
-    is_logistical = serializers.BooleanField(required=False)
-    is_comunity_manager = serializers.BooleanField(required=False)
-    is_staff = serializers.BooleanField(required=False)
-    agent_profit = serializers.FloatField(required=False)
+    email = serializers.EmailField(write_only=True)
+    password = serializers.CharField(write_only=True)
 
     class Meta:
         """Class of model"""
@@ -47,6 +42,13 @@ class UserSerializer(serializers.ModelSerializer):
             "agent_profit",
             "is_staff",
         ]
+
+    def validate_phone_number(self, value):
+        if re.search(r"^\+?\d+$", value):
+            return value
+        raise serializers.ValidationError(
+            {"error": "El numero de telefono no es valido"}
+        )
 
     def validate_email(self, value):
         """Verification of email"""
@@ -81,16 +83,16 @@ class ProductSerializer(serializers.ModelSerializer):
             "invalid": "El valor proporcionado para el pedido no es válido.",
         },
     )
-    link = serializers.URLField(required=False)
-    description = serializers.CharField(required=False, max_length=100)
-    observation = serializers.CharField(required=False, max_length=100)
-    category = serializers.CharField(required=False, max_length=100)
+    product_pictures = serializers.SlugRelatedField(
+        queryset=EvidenceImages.objects.all(),
+        many=True,
+        slug_field="image_url",
+        error_messages={
+            "does_not_exist": "El pedido {value} no existe.",
+            "invalid": "El valor proporcionado para el pedido no es válido.",
+        },
+    )
     status = serializers.SerializerMethodField(read_only=True)
-    product_picture = serializers.URLField(required=False)
-    shop_delivery_cost = serializers.FloatField(required=False)
-    shop_taxes = serializers.FloatField(required=False)
-    own_taxes = serializers.FloatField(required=False)
-    added_taxes = serializers.FloatField(required=False)
     total_cost = serializers.FloatField(required=True)
 
     class Meta:
@@ -112,7 +114,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "amount_received",
             "order",
             "status",
-            "product_picture",
+            "product_pictures",
             "shop_cost",
             "shop_delivery_cost",
             "shop_taxes",
@@ -126,12 +128,13 @@ class ProductSerializer(serializers.ModelSerializer):
     def get_status(self, obj):
         count = 0
         try:
+            # for product in obj.buys.all():
             for product in self.instance.filter(id=obj.id).first().buys.all():
                 count += product.amount_buyed
         except AttributeError:
-            if self.instance is None:
+            if obj is None:
                 return "Encargado"
-            for product in self.instance.buys.all():
+            for product in obj.buys.all():
                 count += product.amount_buyed
         if count == obj.amount_requested:
             return "Comprado"
@@ -180,8 +183,6 @@ class OrderSerializer(serializers.ModelSerializer):
             "invalid": "El valor proporcionado para el agente no es válido.",
         },
     )
-    status = serializers.CharField(max_length=100, required=False, default="Encargado")
-    pay_status = serializers.CharField(max_length=100, required=False)
     products = ProductSerializer(many=True, read_only=True)
 
     class Meta:
@@ -202,17 +203,6 @@ class OrderSerializer(serializers.ModelSerializer):
         depth = 0
         read_only_fields = ["id"]
 
-    def update(self, instance, validated_data):
-        # Verificar si el campo 'client' está siendo modificado
-        if "sales_manager" in validated_data:
-            if instance.sales_manager != validated_data["sales_manager"]:
-                raise serializers.ValidationError(
-                    {"client": "No se puede cambiar el agente después de la creación."}
-                )
-
-        # Proceder con la actualización normal
-        return super().update(instance, validated_data)
-
     def validate_sales_manager(self, value):
         """Agent Validation"""
         if CustomUser.objects.get(email=value.email).is_agent:
@@ -222,9 +212,6 @@ class OrderSerializer(serializers.ModelSerializer):
 
 class ShopSerializer(serializers.ModelSerializer):
     """Serializer of diferents shops"""
-
-    name = serializers.CharField(max_length=100)
-    link = serializers.URLField()
 
     class Meta:
         """Class of model"""
@@ -236,8 +223,6 @@ class ShopSerializer(serializers.ModelSerializer):
 class BuyingAccountsSerializer(serializers.ModelSerializer):
     """Serializer of buying accounts"""
 
-    account_name = serializers.CharField(max_length=100)
-
     class Meta:
         """Class of model"""
 
@@ -247,9 +232,6 @@ class BuyingAccountsSerializer(serializers.ModelSerializer):
 
 class CommonInformationSerializer(serializers.ModelSerializer):
     """Common information introduced for the admin"""
-
-    change_rate = serializers.FloatField()
-    cost_per_pound = serializers.FloatField()
 
     class Meta:
         """Class of model"""
@@ -374,7 +356,9 @@ class ProductReceivedSerializer(serializers.ModelSerializer):
         },
         write_only=True,
     )
-    original_product_detail = serializers.SerializerMethodField(read_only=True)
+    original_product_detail = ProductSerializer(
+        source="original_product", read_only=True
+    )
     order = serializers.SlugRelatedField(
         queryset=Order.objects.all(),
         slug_field="id",
@@ -418,9 +402,6 @@ class ProductReceivedSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id"]
 
-    def get_original_product_detail(self, obj):
-        return ProductSerializer(obj.original_product).data
-
     def validate(self, attrs):
         if attrs.get("amount_received") and attrs.get("original_product"):
             if attrs["amount_received"] <= 0:
@@ -463,7 +444,15 @@ class DeliverReceipSerializer(serializers.ModelSerializer):
             "invalid": "El valor proporcionado para el pedido no es válido.",
         },
     )
-    deliver_picture = serializers.URLField(required=False)
+    deliver_picture = serializers.SlugRelatedField(
+        queryset=EvidenceImages.objects.all(),
+        many=True,
+        slug_field="image_url",
+        error_messages={
+            "does_not_exist": "El pedido {value} no existe.",
+            "invalid": "El valor proporcionado para el pedido no es válido.",
+        },
+    )
     delivered_products = ProductReceivedSerializer(many=True, read_only=True)
 
     class Meta:
@@ -484,7 +473,15 @@ class DeliverReceipSerializer(serializers.ModelSerializer):
 class PackageSerializer(serializers.ModelSerializer):
     """Package Serializer"""
 
-    package_picture = serializers.URLField(required=False)
+    package_picture = serializers.SlugRelatedField(
+        queryset=EvidenceImages.objects.all(),
+        many=True,
+        slug_field="image_url",
+        error_messages={
+            "does_not_exist": "El pedido {value} no existe.",
+            "invalid": "El valor proporcionado para el pedido no es válido.",
+        },
+    )
     contained_products = ProductReceivedSerializer(many=True, read_only=True)
 
     class Meta:

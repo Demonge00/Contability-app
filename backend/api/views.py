@@ -1,20 +1,15 @@
 "Vistas de la API"
-import os
 from rest_framework.fields import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-import json
 from rest_framework import viewsets
-from django.db import transaction
 from rest_framework.decorators import api_view, action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from django.db import transaction
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
-from django.template import Context, Template
-from django.core.mail import EmailMessage
 from django.utils.crypto import get_random_string
-from django.conf import settings
 from api.permissions.permissions import (
     ReadOnly,
     ReadOnlyorPost,
@@ -48,7 +43,9 @@ from api.models import (
     ProductReceived,
     Package,
     DeliverReceip,
+    EvidenceImages,
 )
+from api.utils.email_sender import send_email
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 import cloudinary.uploader
@@ -86,30 +83,14 @@ class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated | ReadOnlyorPost]
+    permission_classes = [IsAuthenticatedOrReadOnly | ReadOnlyorPost]
 
     def perform_create(self, serializer):
-        verify_secret = get_random_string(length=32)
         try:
-            subject = f"Verifica tu cuenta de usuario para {settings.WEB_SITE_NAME}"
-            html_template_path = os.path.join(
-                os.path.dirname(__file__), "utils", "email_html.html"
+            verify_secret = get_random_string(length=32)
+            send_email(
+                self.request.data["name"], self.request.data["email"], verify_secret
             )
-            with open(html_template_path, "r", encoding="utf-8") as file:
-                html_template_content = file.read()
-            template = Template(html_template_content)
-            context = Context(
-                {
-                    "user_name": self.request.data["name"],
-                    "verification_url": f"{settings.VERIFICATION_URL}{verify_secret}",
-                }
-            )
-            html_message = template.render(context)
-            from_email = settings.EMAIL_HOST_USER
-            recipient_list = [self.request.data["email"]]
-            email = EmailMessage(subject, html_message, from_email, recipient_list)
-            email.content_subtype = "html"  # Configurar el contenido como HTML
-            email.send()
         except Exception as e:
             raise ValidationError({"error": str(e)}) from e
         return serializer.save(
@@ -161,7 +142,7 @@ def verify_user(request, verification_secret):
 
 
 class OrderViewSet(viewsets.ModelViewSet):
-    queryset = Order.objects.all()
+    queryset = Order.objects.all().prefetch_related("delivery_receipts", "products")
     serializer_class = OrderSerializer
     permission_classes = [AgentPermission & (IsAuthenticated | ReadOnlyorPost)]
 
@@ -198,46 +179,13 @@ class CommonInformationViewSet(viewsets.ModelViewSet):
     permission_classes = [ReadOnly | AdminPermission]
 
     def get_object(self):
-        return CommonInformation.objects.first()
+        return CommonInformation.get_instance()
 
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [ReadOnly | AgentPermission]
-
-    def create(self, request, *args, **kwargs):
-        product_picture = None
-        if "product_picture" in self.request.FILES:
-            picture = self.request.FILES.get("product_picture")
-            if not picture.name.lower().endswith((".png", ".jpg", ".jpeg")):
-                raise ValidationError(
-                    "El archivo debe ser una imagen (.png, .jpg, .jpeg)."
-                )
-            try:
-                upload_result = cloudinary.uploader.upload(picture, quality=10)
-            except Exception as e:
-                raise ValidationError(str(e)) from e
-            product_picture = upload_result["secure_url"]
-        if product_picture is not None:
-            request.data["product_picture"] = product_picture
-        return super().create(request, *args, **kwargs)
-
-    def update(self, request, *args, **kwargs):
-        product_picture = None
-        if "product_picture" in self.request.FILES:
-            picture = self.request.FILES.get("product_picture")
-            if not picture.name.lower().endswith((".png", ".jpg", ".jpeg")):
-                raise ValidationError(
-                    "El archivo debe ser una imagen (.png, .jpg, .jpeg)."
-                )
-            try:
-                upload_result = cloudinary.uploader.upload(picture, quality=10)
-            except Exception as e:
-                raise ValidationError(str(e)) from e
-            product_picture = upload_result["secure_url"]
-        request.data["product_picture"] = product_picture
-        return super().update(request, *args, **kwargs)
 
 
 class ShoppingReceipViewSet(viewsets.ModelViewSet):
@@ -333,76 +281,46 @@ class PackageViewSet(viewsets.ModelViewSet):
     serializer_class = PackageSerializer
     permission_classes = [ReadOnly | LogisticalPermission]
 
-    def create(self, request, *args, **kwargs):
-        package_picture = None
-        if "package_picture" in request.FILES:
-            picture = self.request.FILES.get("package_picture")
-            if not picture.name.lower().endswith((".png", ".jpg", ".jpeg")):
-                raise ValidationError(
-                    "El archivo debe ser una imagen (.png, .jpg, .jpeg)."
-                )
-            try:
-                upload_result = cloudinary.uploader.upload(picture, quality=10)
-                package_picture = upload_result["secure_url"]
-            except Exception as e:
-                raise ValidationError(str(e)) from e
-        if package_picture:
-            request.data["package_picture"] = package_picture
-        return super().create(request, *args, **kwargs)
-
-    def update(self, request, *args, **kwargs):
-        package_picture = None
-        if "package_picture" in request.FILES:
-            picture = self.request.FILES.get("package_picture")
-            if not picture.name.lower().endswith((".png", ".jpg", ".jpeg")):
-                raise ValidationError(
-                    "El archivo debe ser una imagen (.png, .jpg, .jpeg)."
-                )
-            try:
-                upload_result = cloudinary.uploader.upload(picture, quality=10)
-                package_picture = upload_result["secure_url"]
-            except Exception as e:
-                raise ValidationError(str(e)) from e
-        if package_picture:
-            request.data["package_picture"] = package_picture
-        return super().create(request, *args, **kwargs)
-
 
 class DeliverReceipViewSet(viewsets.ModelViewSet):
     queryset = DeliverReceip.objects.all()
     serializer_class = DeliverReceipSerializer
     permission_classes = [ReadOnly | LogisticalPermission]
 
-    def create(self, request, *args, **kwargs):
-        deliver_picture = None
-        if "deliver_picture" in request.FILES:
-            picture = self.request.FILES.get("deliver_picture")
-            if not picture.name.lower().endswith((".png", ".jpg", ".jpeg")):
-                raise ValidationError(
-                    "El archivo debe ser una imagen (.png, .jpg, .jpeg)."
-                )
-            try:
-                upload_result = cloudinary.uploader.upload(picture, quality=10)
-                deliver_picture = upload_result["secure_url"]
-            except Exception as e:
-                raise ValidationError(str(e)) from e
-        if deliver_picture:
-            request.data["deliver_picture"] = deliver_picture
-        return super().create(request, *args, **kwargs)
 
-    def update(self, request, *args, **kwargs):
-        deliver_picture = None
-        if "deliver_picture" in request.FILES:
-            picture = self.request.FILES.get("deliver_picture")
+class ImageUploadApiView(APIView):
+    def post(self, request):
+        if "image" in request.FILES:
+            picture = request.FILES.get("image")
             if not picture.name.lower().endswith((".png", ".jpg", ".jpeg")):
                 raise ValidationError(
                     "El archivo debe ser una imagen (.png, .jpg, .jpeg)."
                 )
             try:
                 upload_result = cloudinary.uploader.upload(picture, quality=10)
-                deliver_picture = upload_result["secure_url"]
+                print(upload_result)
+                image_url = upload_result["secure_url"]
             except Exception as e:
                 raise ValidationError(str(e)) from e
-        if deliver_picture:
-            request.data["deliver_picture"] = deliver_picture
-        return super().update(request, *args, **kwargs)
+            image = EvidenceImages(
+                image_url=image_url, public_id=upload_result["public_id"]
+            )
+            image.save()
+            return Response(
+                {"image_url": image_url, "public_id": upload_result["public_id"]},
+                status=status.HTTP_201_CREATED,
+            )
+
+    def delete(self, request):
+
+        if "public_id" in request.data:
+            try:
+                print(request.data)
+                EvidenceImages.objects.get(public_id=request.data["public_id"]).delete()
+                print(request.data["public_id"])
+                destroy_result = cloudinary.uploader.destroy(request.data["public_id"])
+            except Exception as e:
+                raise ValidationError(str(e)) from e
+            return Response(
+                {"destroy result": destroy_result}, status=status.HTTP_200_OK
+            )

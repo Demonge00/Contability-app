@@ -29,5 +29,6 @@ urlpatterns = [
         views.PasswordRecoverList.as_view(),
         name="recover_password",
     ),
+    path("image_upload/", views.ImageUploadApiView.as_view(), name="image_upload"),
     path("security/", views.Protection.as_view(), name="posting_management"),
 ]

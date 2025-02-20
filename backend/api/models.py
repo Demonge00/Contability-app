@@ -19,6 +19,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=100)
     home_address = models.CharField(max_length=200)
     phone_number = models.CharField(max_length=20)
+    # Crear un modelo de lista para los roles es mejor para la escalabilidad
     is_agent = models.BooleanField(default=False)
     is_accountant = models.BooleanField(default=False)
     is_buyer = models.BooleanField(default=False)
@@ -53,13 +54,14 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 class Order(models.Model):
     """Orders in shops"""
 
+    # Siempre declarar null en los foreign keys
     client = models.ForeignKey(
         CustomUser, on_delete=models.CASCADE, related_name="orders"
     )
     sales_manager = models.ForeignKey(
         CustomUser, on_delete=models.CASCADE, related_name="managed_orders"
     )
-    status = models.CharField(max_length=100)
+    status = models.CharField(max_length=100, default="Encargado")
     pay_status = models.CharField(max_length=100, default="No pagado")
 
     def __str__(self):
@@ -78,7 +80,7 @@ class Order(models.Model):
         prodlist = []
         if self.delivery_receipts.all():
             for i in self.delivery_receipts.all():
-                prodlist.insert(-1, i)
+                prodlist.append(i)
         return prodlist
 
     def received_value_of_client(self):
@@ -119,9 +121,23 @@ class CommonInformation(models.Model):
     change_rate = models.FloatField(default=0)
     cost_per_pound = models.FloatField(default=0)
 
-    objects = (
-        models.Manager()
-    )  # Add this line to ensure the objects manager is available
+    objects = models.Manager()
+
+    @staticmethod
+    def get_instance():
+        instance = CommonInformation.objects.first()
+        if not instance:
+            instance = CommonInformation.objects.create()
+        return instance
+
+
+class EvidenceImages(models.Model):
+    """Images for products"""
+
+    public_id = models.CharField(max_length=200, null=True)
+    image_url = models.URLField()
+
+    objects = models.Manager()
 
 
 class Product(models.Model):
@@ -141,7 +157,7 @@ class Product(models.Model):
     amount_requested = models.IntegerField()
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="products")
     status = models.CharField(max_length=100, default="Encargado")
-    product_picture = models.URLField(blank=True, null=True)
+    product_pictures = models.ManyToManyField(EvidenceImages)
 
     # Product prices
     shop_cost = models.FloatField()
@@ -222,7 +238,7 @@ class DeliverReceip(models.Model):
     weight = models.FloatField()
     status = models.CharField(max_length=100, default="Enviado")
     deliver_date = models.DateTimeField(default=timezone.now)
-    deliver_picture = models.URLField(blank=True, null=True)
+    deliver_picture = models.ManyToManyField(EvidenceImages)
 
     objects = models.Manager()
 
@@ -240,7 +256,7 @@ class Package(models.Model):
     agency_name = models.CharField(max_length=100)
     number_of_tracking = models.CharField(max_length=100)
     status_of_processing = models.CharField(max_length=100, default="Enviado")
-    package_picture = models.URLField(blank=True, null=True)
+    package_picture = models.ManyToManyField(EvidenceImages)
 
     objects = models.Manager()
 

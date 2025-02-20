@@ -206,9 +206,9 @@ if not DEBUG:
 WEB_SITE_NAME = os.getenv("DJANGO_WEB_SITE_NAME")
 VERIFICATION_URL = os.getenv("DJANGO_VERIFICATION_URL")
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"
+EMAIL_HOST = "smtp.resend.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.getenv("DJANGO_SENDER_EMAIL")
+EMAIL_HOST_USER = "resend"
 EMAIL_HOST_PASSWORD = os.getenv("DJANGO_SENDER_PASSWORD")
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
