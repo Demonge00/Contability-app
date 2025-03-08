@@ -44,6 +44,7 @@ LOCAL_APPS = [
     "api.apps.ApiConfig",
     "cloudinary",
     "cloudinary_storage",
+    "django_filters",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS

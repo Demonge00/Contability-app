@@ -1,4 +1,5 @@
 "Vistas de la API"
+
 from rest_framework.fields import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -45,6 +46,14 @@ from api.models import (
     DeliverReceip,
     EvidenceImages,
 )
+from api.filters import (
+    DeliverReceipFilter,
+    OrderFilter,
+    PackageFilter,
+    ProductFilter,
+    ShoppingReceipFilter,
+    UserFilter,
+)
 from api.utils.email_sender import send_email
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -58,6 +67,7 @@ User = get_user_model()
 
 class MyTokenObtainPairView(TokenObtainPairView):
     "Vista del serializer"
+
     serializer_class = TokenObtainPairSerializer
 
 
@@ -97,6 +107,15 @@ class UserViewSet(viewsets.ModelViewSet):
             verification_secret=verify_secret,
             sent_verification_email=True,
         )
+
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    def user_filter(self, request):
+        try:
+            user_filtered = UserFilter(request.data, queryset=User.objects.all())
+            user_serialized = UserSerializer(user_filtered.qs, many=True)
+            return Response(user_serialized.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            raise ValidationError({"message": "Error al filtrar usuarios"}) from e
 
 
 class PasswordRecoverList(APIView):
@@ -150,7 +169,15 @@ class OrderViewSet(viewsets.ModelViewSet):
         user = User.objects.get(id=self.request.user.id)
         return serializer.save(sales_manager=user)
 
-    # @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=["post"], permission_classes=[ReadOnly])
+    def order_filter(self, request):
+        """Filtrar ordenes"""
+        try:
+            order_filtered = OrderFilter(request.data, queryset=Order.objects.all())
+            order_serialized = OrderSerializer(order_filtered.qs, many=True)
+            return Response(order_serialized.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            raise ValidationError({"message": f"{e}"}) from e
 
 
 class ShopViewSet(viewsets.ModelViewSet):
@@ -187,6 +214,19 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [ReadOnly | AgentPermission]
 
+    @action(detail=False, methods=["post"], permission_classes=[ReadOnlyorPost])
+    def product_filter(self, request):
+        """Filtrar productos"""
+        try:
+            product_filtered = ProductFilter(
+                request.data, queryset=Product.objects.all()
+            )
+            product_serialized = ProductSerializer(product_filtered.qs, many=True)
+
+            return Response(product_serialized.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            raise ValidationError({"message": f"{e}"}) from e
+
 
 class ShoppingReceipViewSet(viewsets.ModelViewSet):
     queryset = ShoppingReceip.objects.all()
@@ -214,6 +254,40 @@ class ShoppingReceipViewSet(viewsets.ModelViewSet):
             return Response(
                 {"message": "Faltan datos"}, status=status.HTTP_400_BAD_REQUEST
             )
+
+    @action(detail=False, methods=["post"], permission_classes=[ReadOnlyorPost])
+    def shopping_reciep_filter(self, request):
+        """Filtrar recibos de compra"""
+        try:
+            if "buyed_products" in request.data:
+                if not isinstance(request.data["buyed_products"], list):
+                    if not ProductBuyed.objects.filter(
+                        id=request.data["buyed_products"]
+                    ).exists():
+                        raise ValidationError(
+                            {"message": "El id de producto listado no existe"}
+                        )
+                else:
+                    prod = ProductBuyed.objects.filter(
+                        id__in=request.data["buyed_products"]
+                    )
+                    print(len(prod), len(request.data["buyed_products"]))
+                    if len(prod) != len(request.data["buyed_products"]):
+                        raise ValidationError(
+                            {
+                                "message": "Algunos de los id de productos listados no existen"
+                            }
+                        )
+            shopping_receip_filtered = ShoppingReceipFilter(
+                request.data,
+                queryset=ShoppingReceip.objects.all(),
+            )
+            shopping_receip_serialized = ShoppingReceipSerializer(
+                shopping_receip_filtered.qs, many=True
+            )
+            return Response(shopping_receip_serialized.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            raise ValidationError({"message": f"{e}"}) from e
 
 
 class ProductBuyedViewSet(viewsets.ModelViewSet):
@@ -281,11 +355,58 @@ class PackageViewSet(viewsets.ModelViewSet):
     serializer_class = PackageSerializer
     permission_classes = [ReadOnly | LogisticalPermission]
 
+    @action(detail=False, methods=["post"], permission_classes=[ReadOnlyorPost])
+    def package_filter(self, request):
+        """Filtrar paquetes"""
+        try:
+            if "contained_products" in request.data:
+                if not isinstance(request.data["contained_products"], list):
+                    if not ProductReceived.objects.filter(
+                        id=request.data["contained_products"]
+                    ).exists():
+                        raise ValidationError(
+                            {"message": "El id de producto listado no existe"}
+                        )
+                else:
+                    prod = ProductReceived.objects.filter(
+                        id__in=request.data["contained_products"]
+                    )
+                    print(len(prod), len(request.data["contained_products"]))
+                    if len(prod) != len(request.data["contained_products"]):
+                        raise ValidationError(
+                            {
+                                "message": "Algunos de los id de productos listados no existen"
+                            }
+                        )
+            package_filtered = PackageFilter(
+                request.data,
+                queryset=Package.objects.all(),
+            )
+            package_serialized = PackageSerializer(package_filtered.qs, many=True)
+            return Response(package_serialized.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            raise ValidationError({"message": f"{e}"}) from e
+
 
 class DeliverReceipViewSet(viewsets.ModelViewSet):
     queryset = DeliverReceip.objects.all()
     serializer_class = DeliverReceipSerializer
     permission_classes = [ReadOnly | LogisticalPermission]
+
+    @action(detail=False, methods=["post"], permission_classes=[ReadOnlyorPost])
+    def deliver_reciep_filter(self, request):
+        """Filtrar recibos de entrega"""
+        try:
+            deliver_receip_filtered = DeliverReceipFilter(
+                request.data, queryset=DeliverReceip.objects.all()
+            )
+            deliver_receip_serialized = DeliverReceipSerializer(
+                deliver_receip_filtered.qs, many=True
+            )
+
+            return Response(deliver_receip_serialized.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            raise ValidationError({"message": f"{e}"}) from e
 
 
 class ImageUploadApiView(APIView):

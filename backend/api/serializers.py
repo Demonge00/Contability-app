@@ -92,6 +92,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "invalid": "El valor proporcionado para el pedido no es válido.",
         },
     )
+    shop_taxes = serializers.SerializerMethodField(read_only=True)
     status = serializers.SerializerMethodField(read_only=True)
     total_cost = serializers.FloatField(required=True)
 
@@ -142,6 +143,9 @@ class ProductSerializer(serializers.ModelSerializer):
             return "Parcialmente comprado"
         return "Encargado"
 
+    def get_shop_taxes(self, obj):
+        return obj.shop.taxes
+
     def validate_shop_cost(self, value):
         """Ensure shop_cost is not negative."""
         if value < 0:
@@ -184,6 +188,7 @@ class OrderSerializer(serializers.ModelSerializer):
         },
     )
     products = ProductSerializer(many=True, read_only=True)
+    received_products = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         """Class of model"""
@@ -199,9 +204,21 @@ class OrderSerializer(serializers.ModelSerializer):
             "products",
             "received_value_of_client",
             "extra_payments",
+            "received_products",
+            "creation_date",
         ]
         depth = 0
         read_only_fields = ["id"]
+
+    def get_received_products(self, obj):
+        """Total products recieved"""
+        prodlist = []
+        if obj.delivery_receipts.all().exists():
+            for deliver_receip in obj.delivery_receipts.all():
+                for product in deliver_receip.delivered_products.all():
+                    prodlist.append(ProductSerializer(product.original_product).data)
+
+        return prodlist
 
     def validate_sales_manager(self, value):
         """Agent Validation"""
@@ -340,6 +357,7 @@ class ShoppingReceipSerializer(serializers.ModelSerializer):
             "total_cost_of_shopping",
             "buy_date",
             "buyed_products",
+            "store_id",
         ]
         read_only_fields = ["id"]
 

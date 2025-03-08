@@ -63,6 +63,7 @@ class Order(models.Model):
     )
     status = models.CharField(max_length=100, default="Encargado")
     pay_status = models.CharField(max_length=100, default="No pagado")
+    creation_date = models.DateTimeField(default=timezone.now, null=True, blank=True)
 
     def __str__(self):
         return "Pedido #" + str(self.pk) + " creado por " + str(self.client.name)
@@ -74,14 +75,6 @@ class Order(models.Model):
             for i in self.products.all():
                 cost += i.total_cost
         return cost
-
-    def received_products(self):
-        """Total products reciebed"""
-        prodlist = []
-        if self.delivery_receipts.all():
-            for i in self.delivery_receipts.all():
-                prodlist.append(i)
-        return prodlist
 
     def received_value_of_client(self):
         """Total value of objects receives by client"""
@@ -103,6 +96,7 @@ class Shop(models.Model):
 
     name = models.CharField(max_length=100, unique=True)
     link = models.URLField(unique=True)
+    taxes = models.FloatField(default=0)
 
     objects = models.Manager()
 
@@ -157,12 +151,11 @@ class Product(models.Model):
     amount_requested = models.IntegerField()
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="products")
     status = models.CharField(max_length=100, default="Encargado")
-    product_pictures = models.ManyToManyField(EvidenceImages)
+    product_pictures = models.ManyToManyField(EvidenceImages, blank=True)
 
     # Product prices
     shop_cost = models.FloatField()
     shop_delivery_cost = models.FloatField(default=0)
-    shop_taxes = models.FloatField(default=0)
     own_taxes = models.FloatField(default=0)
     added_taxes = models.FloatField(default=0)
     total_cost = models.FloatField(default=0)
@@ -213,6 +206,7 @@ class Product(models.Model):
 class ShoppingReceip(models.Model):
     """Receip for each buy in shops"""
 
+    store_id = models.CharField(max_length=100, unique=True, null=True)
     shopping_account = models.ForeignKey(
         BuyingAccounts, on_delete=models.CASCADE, related_name="buys"
     )
@@ -238,7 +232,7 @@ class DeliverReceip(models.Model):
     weight = models.FloatField()
     status = models.CharField(max_length=100, default="Enviado")
     deliver_date = models.DateTimeField(default=timezone.now)
-    deliver_picture = models.ManyToManyField(EvidenceImages)
+    deliver_picture = models.ManyToManyField(EvidenceImages, blank=True)
 
     objects = models.Manager()
 
@@ -256,7 +250,7 @@ class Package(models.Model):
     agency_name = models.CharField(max_length=100)
     number_of_tracking = models.CharField(max_length=100)
     status_of_processing = models.CharField(max_length=100, default="Enviado")
-    package_picture = models.ManyToManyField(EvidenceImages)
+    package_picture = models.ManyToManyField(EvidenceImages, blank=True)
 
     objects = models.Manager()
 
