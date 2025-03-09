@@ -93,7 +93,7 @@ class ProductSerializer(serializers.ModelSerializer):
         },
     )
     shop_taxes = serializers.SerializerMethodField(read_only=True)
-    status = serializers.SerializerMethodField(read_only=True)
+    # status = serializers.SerializerMethodField(read_only=True)
     total_cost = serializers.FloatField(required=True)
 
     class Meta:
@@ -106,6 +106,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "name",
             "link",
             "shop",
+            "set_status_aut",
             "description",
             "observation",
             "category",
@@ -126,22 +127,36 @@ class ProductSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id"]
 
-    def get_status(self, obj):
-        count = 0
-        try:
-            # for product in obj.buys.all():
-            for product in self.instance.filter(id=obj.id).first().buys.all():
-                count += product.amount_buyed
-        except AttributeError:
-            if obj is None:
-                return "Encargado"
-            for product in obj.buys.all():
-                count += product.amount_buyed
-        if count == obj.amount_requested:
-            return "Comprado"
-        if count != 0:
-            return "Parcialmente comprado"
-        return "Encargado"
+    # def get_status(self, obj):
+    #     count_of_buy = 0
+    #     count_of_received = 0
+    #     count_of_delivered = 0
+    #     # try:
+    #     #     # for product in obj.buys.all():
+    #     #     for product in self.instance.filter(id=obj.id).first().buys.all():
+    #     #         count += product.amount_buyed
+    #     # except AttributeError:
+    #     if obj is None:
+    #         return "Encargado"
+    #     for product in obj.buys.all():
+    #         count_of_buy += product.amount_buyed
+    #     for product in obj.delivers.all():
+    #         count_of_received = product.amount_received
+    #     for product in obj.delivers.all():
+    #         count_of_delivered = product.amount_delivered
+    #     if count_of_delivered == obj.amount_requested:
+    #         return "Entregado"
+    #     if count_of_received == obj.amount_requested and count_of_delivered > 0:
+    #         return "Parcialmente Entregado"
+    #     if count_of_received == obj.amount_requested:
+    #         return "Recibido"
+    #     if count_of_buy == obj.amount_requested and count_of_received > 0:
+    #         return "Parcialmente Recibido"
+    #     if count_of_buy == obj.amount_requested:
+    #         return "Comprado"
+    #     if count_of_buy > 0:
+    #         return "Parcialmente comprado"
+    #     return "Encargado"
 
     def get_shop_taxes(self, obj):
         return obj.shop.taxes

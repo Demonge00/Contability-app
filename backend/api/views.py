@@ -108,6 +108,15 @@ class UserViewSet(viewsets.ModelViewSet):
             sent_verification_email=True,
         )
 
+    @action(detail=False, methods=["get"], permission_classes=[ReadOnly])
+    def do_something(self, request):
+        try:
+            for i in Product.objects.all():
+                i.set_status_aut()
+            return Response(status=status.HTTP_200_OK)
+        except:
+            raise ValidationError("fuuuuck")
+
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def user_filter(self, request):
         try:
@@ -246,6 +255,9 @@ class ShoppingReceipViewSet(viewsets.ModelViewSet):
                             product_serializer = ProductBuyedSerializer(data=product)
                             product_serializer.is_valid(raise_exception=True)
                             product_serializer.save()
+                            Product.objects.get(
+                                id=product["original_product"]
+                            ).set_status_aut()
                     return Response(serializer.data, status=status.HTTP_201_CREATED)
                 except Exception as e:
                     raise ValidationError(
@@ -315,6 +327,9 @@ class ProductReceivedViewSet(viewsets.ModelViewSet):
                         product_serializer = ProductReceivedSerializer(data=product)
                         product_serializer.is_valid(raise_exception=True)
                         product_serializer.save()
+                        Product.objects.get(
+                            id=product["original_product"]
+                        ).set_status_aut()
                 return Response(
                     {"Message": "Product Creation success"},
                     status=status.HTTP_201_CREATED,
@@ -332,7 +347,6 @@ class ProductReceivedViewSet(viewsets.ModelViewSet):
                 ):
                     delivered_products = request.data["delivered_products"]
                     for product in delivered_products:
-
                         instance = ProductReceived.objects.get(id=product["id"])
                         product["deliver_receip"] = request.data["deliver_receip"]
                         product_serializer = ProductReceivedSerializer(
@@ -340,7 +354,9 @@ class ProductReceivedViewSet(viewsets.ModelViewSet):
                         )
                         product_serializer.is_valid(raise_exception=True)
                         product_serializer.save()
-                        print(product_serializer.data)
+                        Product.objects.get(
+                            id=instance.original_product["id"]
+                        ).set_status_aut()
                     return Response(
                         {"Message": "Product Creation success"},
                         status=status.HTTP_201_CREATED,
@@ -433,12 +449,9 @@ class ImageUploadApiView(APIView):
             )
 
     def delete(self, request):
-
         if "public_id" in request.data:
             try:
-                print(request.data)
                 EvidenceImages.objects.get(public_id=request.data["public_id"]).delete()
-                print(request.data["public_id"])
                 destroy_result = cloudinary.uploader.destroy(request.data["public_id"])
             except Exception as e:
                 raise ValidationError(str(e)) from e

@@ -172,6 +172,43 @@ class Product(models.Model):
 
     objects = models.Manager()
 
+    def set_status_aut(self):
+        count_of_buy = 0
+        count_of_received = 0
+        count_of_delivered = 0
+        for product in self.buys.all():
+            count_of_buy += product.amount_buyed
+        for product in self.delivers.all():
+            count_of_received = product.amount_received
+        for product in self.delivers.all():
+            count_of_delivered = product.amount_delivered
+        if count_of_delivered == self.amount_requested:
+            self.status = "Entregado"
+            self.save()
+            return
+        if count_of_received == self.amount_requested and count_of_delivered > 0:
+            self.status = "Parcialmente Entregado"
+            self.save()
+            return
+        if count_of_received == self.amount_requested:
+            self.status = "Recibido"
+            self.save()
+            return
+        if count_of_buy == self.amount_requested and count_of_received > 0:
+            self.status = "Parcialmente Recibido"
+            self.save()
+            return
+        if count_of_buy == self.amount_requested:
+            self.status = "Comprado"
+            self.save()
+            return
+        if count_of_buy > 0:
+            self.status = "Parcialmente comprado"
+            self.save()
+            return
+        self.status = "Encargado"
+        self.save()
+
     def cost_per_product(self):
         """Cost after payment for product"""
         cost = 0
