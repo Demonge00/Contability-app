@@ -52,9 +52,9 @@ INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS
 import cloudinary
 
 cloudinary.config(
-    cloud_name="dz2ybxyum",
-    api_key="214132743732354",
-    api_secret="dyNh-PVWpf6a5vhK13Uc2xoLE8k",
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
     # api_proxy="http://proxy.server:3128",
 )
 
